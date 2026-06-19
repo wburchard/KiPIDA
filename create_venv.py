@@ -1,7 +1,6 @@
 import json
 import os
 import subprocess
-import sys
 from pathlib import Path
 
 
@@ -12,22 +11,49 @@ def create_vscode_style_env(project_path: str, python_exe: str):
     vscode_dir = project_root / ".vscode"
     settings_file = vscode_dir / "settings.json"
 
-    print(f"Creating virtual environment in: {venv_dir}")
+    print(f"Creating virtual environment in: {str(venv_dir)}")
 
     # 2. Generate the standard venv using the active Python interpreter
     # This matches VS Code's baseline environment creation
     try:
-        subprocess.run(
-            [python_exe, "-m", "venv", str(venv_dir)], check=True)
-        print("Successfully created .venv folder.")
+        results = subprocess.run(
+            [python_exe, "-m", "venv", "--system-site-packages",
+             str(venv_dir)], check=True, capture_output=True, text=True)
+        print(results.stdout)
+        if (results.stderr):
+            print(results.stderr)
+            return
+        print("Successfully created virtual environment.")
     except subprocess.SubprocessError as e:
         print(f"Error creating virtual environment: {e}")
         return
 
-    venv_python_exe = os.path.join(project_path, ".venv", "bin", "python3")
+    if os.name == "nt":
+        results = subprocess.run(
+            [".venv\\Scripts\\activate.bat"],
+            check=True, capture_output=True, text=True)
+        print(results.stdout)
+        if (results.stderr):
+            print(results.stderr)
+            return
+        print("Virtual environment activated.")
 
-    subprocess.run([venv_python_exe, "-m", "pip", "install", "--upgrade",
-                    "pip"], check=True)
+    print("Updating pip...")
+    if os.name == "nt":
+        venv_python_exe = os.path.join(
+            project_path, ".venv", "Scripts", "pythonw")
+    else:
+        venv_python_exe = os.path.join(
+            project_path, ".venv", "bin", "python3")
+
+    results = subprocess.run(
+        [venv_python_exe, "-m", "pip", "install", "--upgrade", "pip"],
+        check=True, capture_output=True, text=True)
+    print(results.stdout)
+    if 'Successfully installed' not in str(results.stdout):
+        if (results.stderr):
+            print(results.stderr)
+            return
 
     # 3. Determine the correct interpreter path based on the OS
     # Windows uses 'Scripts', while macOS/Linux use 'bin'
@@ -60,7 +86,7 @@ def create_vscode_style_env(project_path: str, python_exe: str):
     with open(settings_file, "w") as f:
         json.dump(settings_data, f, indent=4)
 
-    print(f"Updated {settings_file} with default interpreter path.")
+    print(f"Updated {str(settings_file)} with default interpreter path.")
 
     requirements_path = os.path.join(project_path, 'requirements.txt')
     if os.path.exists(requirements_path):
@@ -71,8 +97,14 @@ def create_vscode_style_env(project_path: str, python_exe: str):
         else:  # macOS/Linux/Posix
             pip_executable = os.path.join(venv_dir, 'bin', 'pip')
 
-        subprocess.check_call([pip_executable, 'install',
-                              '-r', requirements_path])
+        results = subprocess.run(
+            [pip_executable, 'install', '-r', requirements_path],
+            capture_output=True, text=True, check=True)
+        print(results.stdout)
+        if (results.stderr):
+            print(results.stderr)
+            return
+
         print("Packages installed successfully.")
 
     print("Environment setup complete. Restart your"
@@ -83,21 +115,17 @@ def get_kicad_python_version():
     # Define the default installation path based on the operating system
     if os.name == "nt":
         # Windows default pathway
-        kicad_py_path = r"C:\Program Files\KiCad\bin\python.exe"
-    elif sys.platform == "darwin":
-        # macOS default bundle pathway
-        kicad_py_path = \
-            "/Applications/KiCad/KiCad.app/Contents/MacOS/kipython"
+        kicad_py_path = r"C:\Program Files\KiCad\10.0\bin\pythonw.exe"
     else:
         # Linux typically links KiCad to system python packages
         kicad_py_path = "/bin/python3"
 
+    print(f'kicad_py_path: {kicad_py_path}')
     try:
         # Programmatically invoke the executable with the version flag
         result = subprocess.run(
             [kicad_py_path, "--version"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             check=True
         )
@@ -114,20 +142,32 @@ def get_kicad_python_version():
 
 def get_python_executables() -> list:
     exes = []
-    result = subprocess.run(['which', '-a', 'python3'],
-                            capture_output=True, text=True)
+    if os.name == "nt":
+        result = subprocess.run(["py", "-0p"],
+                                capture_output=True, text=True)
+    else:
+        result = subprocess.run(['which', '-a', 'python3'],
+                                capture_output=True, text=True)
     output = str(result.stdout)
     for rec in output.split('\n'):
         if len(rec):
-            exes.append(rec)
+            if os.name == 'nt':
+                p = rec.find("\\Users\\")
+                if p:
+                    p = p - 2
+                    exes.append(rec[p:])
+            else:
+                exes.append(rec)
+    if os.name == 'nt':
+        exes.append(r"C:\Program Files\KiCad\10.0\bin\pythonw.exe")
     return exes
 
 
 def get_python_exe_version(python_exe: str) -> str:
     version: str = ''
     result = subprocess.run([python_exe, '--version'],
-                            capture_output=True, text=True)
-    output = str(result.stdout)
+                            capture_output=True, text=True, check=True)
+    output = str(result.stdout or result.stderr)
     for rec in output.strip().split('\n'):
         if len(rec):
             a = rec.split(' ')
@@ -144,6 +184,7 @@ if __name__ == "__main__":
     for python_exe in python_executables:
         if '.venv' in python_exe:
             continue
+        print(f"Checking python version using {python_exe}")
         version = get_python_exe_version(python_exe)
         if version.startswith(kicad_python_version):
             matching_exe = python_exe
