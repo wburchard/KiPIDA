@@ -29,6 +29,7 @@ def create_vscode_style_env(project_path: str, python_exe: str):
         return
 
     if os.name == "nt":
+        print("Activzting virtual environment...")
         results = subprocess.run(
             [".venv\\Scripts\\activate.bat"],
             check=True, capture_output=True, text=True)
@@ -54,6 +55,8 @@ def create_vscode_style_env(project_path: str, python_exe: str):
         if (results.stderr):
             print(results.stderr)
             return
+        else:
+            print('pip update unsuccessful.')
 
     # 3. Determine the correct interpreter path based on the OS
     # Windows uses 'Scripts', while macOS/Linux use 'bin'
@@ -94,7 +97,7 @@ def create_vscode_style_env(project_path: str, python_exe: str):
         # Determine the correct pip executable path based on OS
         if os.name == 'nt':  # Windows
             pip_executable = os.path.join(venv_dir, 'Scripts', 'pip.exe')
-        else:  # macOS/Linux/Posix
+        else:
             pip_executable = os.path.join(venv_dir, 'bin', 'pip')
 
         results = subprocess.run(
