@@ -8,7 +8,7 @@ on Ubuntu 26.04) and Windows 11.
 1. Ensure that the Kicad API is enabled (see the installation nodes for Kicad 9).
 2. Locate your KiCad plugins directory:
    - **Windows:** `%APPDATA%\kicad\10.0\plugins`
-   - **Linux:** `~/.local/share/kicad/10.0/plugins`
+   - **Linux:** `~/.local/share/kicad/10.0/3rdParty/plugins`
 3. Copy the `KiPIDA` folder into the `plugins` directory.
 4. Open a terminal and change into the `KiPIDA` folder.
 5. Execute the appropriate `create_venv` bash or batch file.
