@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 from pathlib import Path
+from packaging.version import parse
 
 
 def create_vscode_style_env(project_path: str, python_exe: str):
@@ -121,7 +122,7 @@ def get_kicad_python_version():
         kicad_py_path = r"C:\Program Files\KiCad\10.0\bin\pythonw.exe"
     else:
         # Linux typically links KiCad to system python packages
-        kicad_py_path = "/bin/python3"
+        kicad_py_path = "/usr/bin/python3"
 
     print(f'kicad_py_path: {kicad_py_path}')
     try:
@@ -189,12 +190,19 @@ if __name__ == "__main__":
             continue
         print(f"Checking python version using {python_exe}")
         version = get_python_exe_version(python_exe)
-        if version.startswith(kicad_python_version):
+        if parse(version) == parse(kicad_python_version):
             matching_exe = python_exe
             break
     if len(matching_exe):
+        for python_exe in python_executables:
+            if '.venv' in python_exe:
+                continue
+            version = get_python_exe_version(python_exe)
+            if parse(version) > parse(kicad_python_version):
+                matching_exe = python_exe
+                break
+    if len(matching_exe):
         saved_cwd = os.getcwd()
-        # matching_exe = '/bin/python3'
         print(f'Using Python executable: {matching_exe}')
         create_vscode_style_env(os.getcwd(), matching_exe)
         os.chdir(saved_cwd)
